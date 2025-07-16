@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}Submit Inquiry - HR Compliance Platform{% endblock %}
+
+{% block navigation %}
+<a href="/client/portal">Dashboard</a>
+<a href="/client/documents">Documents</a>
+<a href="/client/submit-inquiry">Submit Inquiry</a>
+<a href="#" data-action="logout">Logout</a>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <h2>Submit HR Inquiry</h2>
+        <p>Get help with HR questions, report incidents, or request assistance</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <h3>New Inquiry</h3>
+            <form id="inquiryForm">
+                <div class="form-group">
+                    <label for="inquirySubject">Subject</label>
+                    <input type="text" id="inquirySubject" name="subject" class="form-control" required 
+                           placeholder="Brief summary of your question or issue">
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="inquiryType">Type of Inquiry</label>
+                            <select id="inquiryType" name="inquiry_type" class="form-control" required>
+                                <option value="">Select type...</option>
+                                <option value="question">General Question</option>
+                                <option value="policy_clarification">Policy Clarification</option>
+                                <option value="incident_report">Incident Report</option>
+                                <option value="complaint">Employee Complaint</option>
+                                <option value="compliance_concern">Compliance Concern</option>
+                                <option value="training_request">Training Request</option>
+                                <option value="document_request">Document Request</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="inquiryPriority">Priority Level</label>
+                            <select id="inquiryPriority" name="priority" class="form-control" required>
+                                <option value="low">Low - General inquiry</option>
+                                <option value="medium" selected>Medium - Standard request</option>
+                                <option value="high">High - Urgent matter</option>
+                                <option value="urgent">Urgent - Immediate attention needed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="inquiryDescription">Detailed Description</label>
+                    <textarea id="inquiryDescription" name="description" class="form-control" rows="6" required
+                              placeholder="Please provide as much detail as possible about your inquiry, including:&#10;&#10;- What happened or what you need help with&#10;- When did it occur (if applicable)&#10;- Who was involved (if applicable)&#10;- Any relevant policies or procedures&#10;- What outcome you're seeking"></textarea>
+                </div>
+                
+                <div class="alert alert-info">
+                    <strong>Note:</strong> Your inquiry will be reviewed by our HR compliance team. 
+                    We typically respond within 1-2 business days for standard inquiries, 
+                    or within 4 hours for urgent matters.
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="/client/portal" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Submit Inquiry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <h3>Quick Help</h3>
+            <div style="margin-bottom: 1rem;">
+                <strong>Common Topics:</strong>
+                <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                    <li>Employee handbook questions</li>
+                    <li>Time-off policies</li>
+                    <li>Workplace safety concerns</li>
+                    <li>Harassment or discrimination</li>
+                    <li>Training requirements</li>
+                    <li>Compliance certifications</li>
+                </ul>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <strong>Response Times:</strong>
+                <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                    <li><span class="badge badge-danger">Urgent</span> - 4 hours</li>
+                    <li><span class="badge badge-warning">High</span> - Same day</li>
+                    <li><span class="badge badge-primary">Medium</span> - 1-2 days</li>
+                    <li><span class="badge badge-secondary">Low</span> - 2-3 days</li>
+                </ul>
+            </div>
+            
+            <div>
+                <strong>Emergency Contact:</strong><br>
+                For urgent safety issues or emergencies, 
+                contact your supervisor immediately or call 911.
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>My Recent Inquiries</h3>
+            <div id="recentInquiries">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Check authentication
+if (!HRApp.checkAuth()) {
+    // Redirect handled by checkAuth
+}
+
+async function loadRecentInquiries() {
+    try {
+        const inquiries = await HRApp.apiRequest('/client/inquiries');
+        renderRecentInquiries(inquiries.slice(0, 5));
+    } catch (error) {
+        console.error('Error loading recent inquiries:', error);
+        document.getElementById('recentInquiries').innerHTML = '<p>Unable to load recent inquiries.</p>';
+    }
+}
+
+function renderRecentInquiries(inquiries) {
+    if (inquiries.length === 0) {
+        document.getElementById('recentInquiries').innerHTML = '<p>No previous inquiries.</p>';
+        return;
+    }
+    
+    const inquiriesHtml = inquiries.map(inquiry => `
+        <div style="padding: 0.75rem; border-bottom: 1px solid #eee;">
+            <div style="display: flex; justify-content: between; align-items: start; margin-bottom: 0.5rem;">
+                <strong style="font-size: 0.9rem;">${inquiry.subject}</strong>
+                <span class="badge badge-${getStatusColor(inquiry.status)}">${inquiry.status.toUpperCase()}</span>
+            </div>
+            <div style="font-size: 0.8rem; color: #666;">
+                ${HRApp.formatDate(inquiry.created_at)}
+            </div>
+            ${inquiry.admin_response ? `
+                <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #27ae60;">
+                    ✓ Responded
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+    
+    document.getElementById('recentInquiries').innerHTML = inquiriesHtml;
+}
+
+function getStatusColor(status) {
+    switch(status) {
+        case 'open': return 'warning';
+        case 'in_review': return 'primary';
+        case 'resolved': return 'success';
+        case 'closed': return 'secondary';
+        default: return 'primary';
+    }
+}
+
+// Handle inquiry form submission
+HRApp.handleFormSubmit(document.getElementById('inquiryForm'), async (formData) => {
+    const inquiryData = {
+        subject: formData.get('subject'),
+        description: formData.get('description'),
+        inquiry_type: formData.get('inquiry_type'),
+        priority: formData.get('priority')
+    };
+    
+    try {
+        await HRApp.apiRequest('/client/inquiries', {
+            method: 'POST',
+            body: JSON.stringify(inquiryData)
+        });
+        
+        HRApp.showAlert('Your inquiry has been submitted successfully. We will respond according to the priority level selected.', 'success');
+        
+        // Reset form
+        document.getElementById('inquiryForm').reset();
+        document.getElementById('inquiryPriority').value = 'medium';
+        
+        // Refresh recent inquiries
+        loadRecentInquiries();
+        
+        // Optionally redirect to portal after a delay
+        setTimeout(() => {
+            window.location.href = '/client/portal';
+        }, 3000);
+        
+    } catch (error) {
+        HRApp.showAlert('Error submitting inquiry: ' + error.message, 'danger');
+    }
+});
+
+// Auto-populate based on inquiry type
+document.getElementById('inquiryType').addEventListener('change', function() {
+    const descriptions = {
+        'incident_report': 'Please describe the incident in detail including:\n\n- Date and time of incident\n- Location where it occurred\n- People involved\n- What happened\n- Any injuries or damages\n- Witnesses present\n- Actions taken so far',
+        'complaint': 'Please provide details about your complaint including:\n\n- Nature of the complaint\n- When it occurred\n- People involved\n- Previous attempts to resolve\n- Desired outcome',
+        'compliance_concern': 'Please describe your compliance concern including:\n\n- Specific regulation or policy involved\n- What you observed or experienced\n- Potential risks or violations\n- Recommended corrective actions',
+        'training_request': 'Please specify your training request including:\n\n- Type of training needed\n- Number of employees to be trained\n- Preferred timeline\n- Specific compliance requirements\n- Learning objectives'
+    };
+    
+    const textarea = document.getElementById('inquiryDescription');
+    if (descriptions[this.value] && !textarea.value.trim()) {
+        textarea.value = descriptions[this.value];
+    }
+});
+
+// Initialize
+loadRecentInquiries();
+</script>
+{% endblock %}

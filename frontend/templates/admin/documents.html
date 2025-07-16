@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block title %}Document Management - HR Compliance Platform{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Document Management</h2>
+            <button class="btn btn-primary" onclick="showModal('uploadModal')">
+                Upload Document
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Document Library</h3>
+        <div>
+            <select id="typeFilter" class="form-control" style="width: auto; display: inline-block;">
+                <option value="">All Types</option>
+                <option value="handbook">Handbook</option>
+                <option value="training">Training</option>
+                <option value="checklist">Checklist</option>
+                <option value="policy">Policy</option>
+                <option value="form">Form</option>
+                <option value="template">Template</option>
+            </select>
+        </div>
+    </div>
+    
+    <div id="documentsTable">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Document Assignments</h3>
+    <div id="assignmentsTable">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Upload Document Modal -->
+<div id="uploadModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
+        <h3>Upload Document</h3>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="documentFile">Choose File</label>
+                <input type="file" id="documentFile" name="file" class="form-control" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif,.zip" required>
+                <small style="color: #666;">Supported formats: PDF, DOC, XLS, PPT, TXT, Images, ZIP (max 50MB)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="documentType">Document Type</label>
+                <select id="documentType" name="document_type" class="form-control" required>
+                    <option value="handbook">Employee Handbook</option>
+                    <option value="training">Training Material</option>
+                    <option value="checklist">Compliance Checklist</option>
+                    <option value="policy">Company Policy</option>
+                    <option value="form">HR Form</option>
+                    <option value="template">Template</option>
+                    <option value="general">General</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="documentDescription">Description</label>
+                <textarea id="documentDescription" name="description" class="form-control" rows="3" placeholder="Brief description of the document..."></textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Upload Document</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assign Document Modal -->
+<div id="assignModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
+        <h3>Assign Document to Client</h3>
+        <form id="assignForm">
+            <input type="hidden" id="assignDocumentId" name="document_id">
+            
+            <div class="form-group">
+                <label for="assignClient">Select Client</label>
+                <select id="assignClient" name="client_id" class="form-control" required>
+                    <option value="">Choose client...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="assignNotes">Assignment Notes</label>
+                <textarea id="assignNotes" name="notes" class="form-control" rows="3" placeholder="Optional notes about this assignment..."></textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Assign Document</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Check authentication
+if (!HRApp.checkAuth()) {
+    // Redirect handled by checkAuth
+}
+
+let documents = [];
+let assignments = [];
+let clients = [];
+
+async function loadDocuments(typeFilter = '') {
+    try {
+        const params = typeFilter ? `?document_type=${typeFilter}` : '';
+        documents = await HRApp.apiRequest(`/documents/${params}`);
+        renderDocumentsTable();
+    } catch (error) {
+        HRApp.showAlert('Error loading documents: ' + error.message, 'danger');
+    }
+}
+
+async function loadAssignments() {
+    try {
+        assignments = await HRApp.apiRequest('/admin/documents/assignments');
+        renderAssignmentsTable();
+    } catch (error) {
+        HRApp.showAlert('Error loading assignments: ' + error.message, 'danger');
+    }
+}
+
+async function loadClients() {
+    try {
+        clients = await HRApp.apiRequest('/admin/clients');
+        populateClientSelect();
+    } catch (error) {
+        console.error('Error loading clients:', error);
+    }
+}
+
+function renderDocumentsTable() {
+    if (documents.length === 0) {
+        document.getElementById('documentsTable').innerHTML = '<p>No documents found.</p>';
+        return;
+    }
+    
+    const tableHtml = `
+        <table class="table" data-sortable>
+            <thead>
+                <tr>
+                    <th data-sortable="original_filename">File Name</th>
+                    <th data-sortable="document_type">Type</th>
+                    <th data-sortable="file_size">Size</th>
+                    <th data-sortable="created_at">Uploaded</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${documents.map(doc => `
+                    <tr>
+                        <td data-column="original_filename">
+                            ${doc.original_filename}
+                            ${doc.description ? `<br><small style="color: #666;">${doc.description}</small>` : ''}
+                        </td>
+                        <td data-column="document_type">
+                            <span class="badge badge-primary">${doc.document_type.replace('_', ' ').toUpperCase()}</span>
+                        </td>
+                        <td data-column="file_size">${HRApp.formatFileSize(doc.file_size)}</td>
+                        <td data-column="created_at">${HRApp.formatDate(doc.created_at)}</td>
+                        <td>
+                            <button class="btn btn-small btn-secondary" onclick="assignDocument(${doc.id})">
+                                Assign
+                            </button>
+                            <button class="btn btn-small btn-primary" onclick="HRApp.downloadDocument(${doc.id}, '${doc.original_filename}')">
+                                Download
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    document.getElementById('documentsTable').innerHTML = tableHtml;
+}
+
+function renderAssignmentsTable() {
+    if (assignments.length === 0) {
+        document.getElementById('assignmentsTable').innerHTML = '<p>No document assignments found.</p>';
+        return;
+    }
+    
+    const tableHtml = `
+        <table class="table" data-sortable>
+            <thead>
+                <tr>
+                    <th data-sortable="document">Document</th>
+                    <th data-sortable="client">Client</th>
+                    <th data-sortable="assigned_at">Assigned Date</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${assignments.map(assignment => `
+                    <tr>
+                        <td data-column="document">${assignment.document.original_filename}</td>
+                        <td data-column="client">${getClientName(assignment.client_id)}</td>
+                        <td data-column="assigned_at">${HRApp.formatDate(assignment.assigned_at)}</td>
+                        <td>${assignment.notes || '-'}</td>
+                        <td>
+                            <button class="btn btn-small btn-danger" onclick="removeAssignment(${assignment.id})">
+                                Remove
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    document.getElementById('assignmentsTable').innerHTML = tableHtml;
+}
+
+function getClientName(clientId) {
+    const client = clients.find(c => c.id === clientId);
+    return client ? client.company_name : `Client ${clientId}`;
+}
+
+function populateClientSelect() {
+    const select = document.getElementById('assignClient');
+    select.innerHTML = '<option value="">Choose client...</option>' + 
+        clients.map(client => `<option value="${client.id}">${client.company_name}</option>`).join('');
+}
+
+function assignDocument(documentId) {
+    document.getElementById('assignDocumentId').value = documentId;
+    HRApp.showModal('assignModal');
+}
+
+async function removeAssignment(assignmentId) {
+    if (!confirm('Are you sure you want to remove this document assignment?')) {
+        return;
+    }
+    
+    try {
+        // You'll need to implement this endpoint
+        await HRApp.apiRequest(`/admin/documents/assignments/${assignmentId}`, {
+            method: 'DELETE'
+        });
+        
+        HRApp.showAlert('Assignment removed successfully', 'success');
+        loadAssignments();
+    } catch (error) {
+        HRApp.showAlert('Error removing assignment: ' + error.message, 'danger');
+    }
+}
+
+// Handle document upload
+HRApp.handleFormSubmit(document.getElementById('uploadForm'), async (formData) => {
+    try {
+        await HRApp.uploadDocument(formData);
+        
+        HRApp.hideModal('uploadModal');
+        document.getElementById('uploadForm').reset();
+        
+        // Reload documents
+        loadDocuments();
+    } catch (error) {
+        // Error already shown by uploadDocument
+    }
+});
+
+// Handle document assignment
+HRApp.handleFormSubmit(document.getElementById('assignForm'), async (formData) => {
+    const assignmentData = {
+        document_id: parseInt(formData.get('document_id')),
+        client_id: parseInt(formData.get('client_id')),
+        notes: formData.get('notes') || null
+    };
+    
+    try {
+        await HRApp.apiRequest('/admin/documents/assign', {
+            method: 'POST',
+            body: JSON.stringify(assignmentData)
+        });
+        
+        HRApp.showAlert('Document assigned successfully', 'success');
+        HRApp.hideModal('assignModal');
+        document.getElementById('assignForm').reset();
+        
+        // Reload assignments
+        loadAssignments();
+    } catch (error) {
+        HRApp.showAlert('Error assigning document: ' + error.message, 'danger');
+    }
+});
+
+// Type filter
+document.getElementById('typeFilter').addEventListener('change', function() {
+    loadDocuments(this.value);
+});
+
+// Initialize
+Promise.all([
+    loadDocuments(),
+    loadAssignments(),
+    loadClients()
+]);
+</script>
+{% endblock %}

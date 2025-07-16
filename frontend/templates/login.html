@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - HR Compliance Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>Paradigm International</h1>
+                <p>HR Compliance Platform</p>
+            </div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" name="email" class="form-control" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" class="form-control" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                    Sign In
+                </button>
+            </form>
+            
+            <div style="margin-top: 2rem; text-align: center; font-size: 0.9rem; color: #7f8c8d;">
+                <p>Need access? Contact your HR administrator.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const submitButton = this.querySelector('button[type="submit"]');
+            
+            submitButton.disabled = true;
+            submitButton.textContent = 'Signing In...';
+            
+            try {
+                await HRApp.login(email, password);
+            } catch (error) {
+                console.error('Login error:', error);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Sign In';
+            }
+        });
+        
+        // Check if already logged in
+        if (localStorage.getItem('authToken')) {
+            // Verify token and redirect
+            HRApp.apiRequest('/auth/me')
+                .then(user => {
+                    if (user.is_admin) {
+                        window.location.href = '/admin/dashboard';
+                    } else {
+                        window.location.href = '/client/portal';
+                    }
+                })
+                .catch(() => {
+                    localStorage.removeItem('authToken');
+                });
+        }
+    </script>
+</body>
+</html>

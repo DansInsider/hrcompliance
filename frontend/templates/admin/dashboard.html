@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - HR Compliance Platform{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <h2>Admin Dashboard</h2>
+        <p>Welcome to the Paradigm International HR Compliance Platform</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <h3>Quick Stats</h3>
+            <div id="dashboardStats">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <h3>Recent Activity</h3>
+            <div id="recentActivity">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Recent Tasks</h3>
+                <button class="btn btn-primary btn-small" onclick="showModal('createTaskModal')">
+                    Add Task
+                </button>
+            </div>
+            <div id="recentTasks">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Client Inquiries</h3>
+                <a href="#" class="btn btn-secondary btn-small">View All</a>
+            </div>
+            <div id="clientInquiries">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Task Modal -->
+<div id="createTaskModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
+        <h3>Create New Task</h3>
+        <form id="createTaskForm">
+            <div class="form-group">
+                <label for="taskTitle">Title</label>
+                <input type="text" id="taskTitle" name="title" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="taskClient">Client</label>
+                <select id="taskClient" name="client_id" class="form-control" required>
+                    <option value="">Select Client...</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="taskDescription">Description</label>
+                <textarea id="taskDescription" name="description" class="form-control"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="taskType">Type</label>
+                <select id="taskType" name="task_type" class="form-control" required>
+                    <option value="compliance_audit">Compliance Audit</option>
+                    <option value="training">Training</option>
+                    <option value="handbook_review">Handbook Review</option>
+                    <option value="note">Internal Note</option>
+                    <option value="follow_up">Follow Up</option>
+                </select>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="taskPriority">Priority</label>
+                        <select id="taskPriority" name="priority" class="form-control">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="taskDueDate">Due Date</label>
+                        <input type="datetime-local" id="taskDueDate" name="due_date" class="form-control">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Check authentication
+if (!HRApp.checkAuth()) {
+    // Redirect handled by checkAuth
+}
+
+let dashboardData = {};
+
+async function loadDashboard() {
+    try {
+        // Load quick stats
+        const [clients, users, documents, tasks] = await Promise.all([
+            HRApp.apiRequest('/admin/clients'),
+            HRApp.apiRequest('/admin/users'),
+            HRApp.apiRequest('/documents/'),
+            HRApp.apiRequest('/admin/tasks')
+        ]);
+        
+        dashboardData = { clients, users, documents, tasks };
+        
+        renderQuickStats();
+        renderRecentTasks();
+        renderRecentActivity();
+        
+        // Load clients for task creation dropdown
+        loadClientOptions();
+        
+    } catch (error) {
+        HRApp.showAlert('Error loading dashboard: ' + error.message, 'danger');
+    }
+}
+
+function renderQuickStats() {
+    const { clients, users, documents, tasks } = dashboardData;
+    
+    const activeClients = clients.filter(c => c.is_active).length;
+    const pendingTasks = tasks.filter(t => ['pending', 'in_progress'].includes(t.status)).length;
+    
+    document.getElementById('dashboardStats').innerHTML = `
+        <div style="margin-bottom: 1rem;">
+            <strong>${activeClients}</strong> Active Clients
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <strong>${users.length}</strong> Total Users
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <strong>${documents.length}</strong> Documents
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <strong>${pendingTasks}</strong> Pending Tasks
+        </div>
+    `;
+}
+
+function renderRecentTasks() {
+    const { tasks } = dashboardData;
+    const recentTasks = tasks.slice(0, 5);
+    
+    if (recentTasks.length === 0) {
+        document.getElementById('recentTasks').innerHTML = '<p>No tasks found.</p>';
+        return;
+    }
+    
+    const tasksHtml = recentTasks.map(task => `
+        <div style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; justify-content: between; align-items: center;">
+            <div>
+                <strong>${task.title}</strong><br>
+                <small class="status-${task.status}">${task.status.replace('_', ' ').toUpperCase()}</small>
+                ${task.priority !== 'medium' ? `<span class="badge badge-${getPriorityColor(task.priority)}">${task.priority.toUpperCase()}</span>` : ''}
+            </div>
+            <div style="text-align: right; font-size: 0.875rem; color: #666;">
+                ${task.due_date ? HRApp.formatDate(task.due_date) : ''}
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('recentTasks').innerHTML = tasksHtml;
+}
+
+function renderRecentActivity() {
+    // Combine recent documents and tasks for activity feed
+    const { documents, tasks } = dashboardData;
+    
+    const activities = [
+        ...documents.slice(0, 3).map(doc => ({
+            type: 'document',
+            title: `Document uploaded: ${doc.original_filename}`,
+            date: doc.created_at
+        })),
+        ...tasks.slice(0, 3).map(task => ({
+            type: 'task',
+            title: `Task created: ${task.title}`,
+            date: task.created_at
+        }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+    
+    if (activities.length === 0) {
+        document.getElementById('recentActivity').innerHTML = '<p>No recent activity.</p>';
+        return;
+    }
+    
+    const activityHtml = activities.map(activity => `
+        <div style="padding: 0.75rem; border-bottom: 1px solid #eee;">
+            <div>${activity.title}</div>
+            <small style="color: #666;">${HRApp.formatDate(activity.date)}</small>
+        </div>
+    `).join('');
+    
+    document.getElementById('recentActivity').innerHTML = activityHtml;
+}
+
+function getPriorityColor(priority) {
+    switch(priority) {
+        case 'urgent': return 'danger';
+        case 'high': return 'warning';
+        case 'low': return 'secondary';
+        default: return 'primary';
+    }
+}
+
+async function loadClientOptions() {
+    try {
+        const clients = await HRApp.apiRequest('/admin/clients');
+        const select = document.getElementById('taskClient');
+        
+        select.innerHTML = '<option value="">Select Client...</option>' + 
+            clients.map(client => `<option value="${client.id}">${client.company_name}</option>`).join('');
+    } catch (error) {
+        console.error('Error loading clients:', error);
+    }
+}
+
+// Handle task creation
+HRApp.handleFormSubmit(document.getElementById('createTaskForm'), async (formData) => {
+    const taskData = {
+        title: formData.get('title'),
+        client_id: parseInt(formData.get('client_id')),
+        description: formData.get('description'),
+        task_type: formData.get('task_type'),
+        priority: formData.get('priority'),
+        due_date: formData.get('due_date') || null
+    };
+    
+    try {
+        await HRApp.apiRequest('/admin/tasks', {
+            method: 'POST',
+            body: JSON.stringify(taskData)
+        });
+        
+        HRApp.showAlert('Task created successfully', 'success');
+        HRApp.hideModal('createTaskModal');
+        document.getElementById('createTaskForm').reset();
+        
+        // Reload dashboard
+        loadDashboard();
+    } catch (error) {
+        HRApp.showAlert('Error creating task: ' + error.message, 'danger');
+    }
+});
+
+// Auto-refresh function
+function refreshDashboard() {
+    loadDashboard();
+}
+
+// Initialize dashboard
+loadDashboard();
+</script>
+{% endblock %}

@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}My Documents - HR Compliance Platform{% endblock %}
+
+{% block navigation %}
+<a href="/client/portal">Dashboard</a>
+<a href="/client/documents">Documents</a>
+<a href="/client/submit-inquiry">Submit Inquiry</a>
+<a href="#" data-action="logout">Logout</a>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <h2>My Documents</h2>
+        <p>Access your assigned HR documents and compliance materials</p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Assigned Documents</h3>
+        <div>
+            <select id="typeFilter" class="form-control" style="width: auto; display: inline-block;">
+                <option value="">All Types</option>
+                <option value="handbook">Handbook</option>
+                <option value="training">Training</option>
+                <option value="checklist">Checklist</option>
+                <option value="policy">Policy</option>
+                <option value="form">Form</option>
+                <option value="template">Template</option>
+            </select>
+        </div>
+    </div>
+    
+    <div id="documentsTable">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Document Categories</h3>
+    <div class="row" id="documentCategories">
+        <div class="spinner"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Check authentication
+if (!HRApp.checkAuth()) {
+    // Redirect handled by checkAuth
+}
+
+let documentAssignments = [];
+
+async function loadDocuments(typeFilter = '') {
+    try {
+        documentAssignments = await HRApp.apiRequest('/client/documents');
+        
+        // Filter by type if specified
+        let filteredDocs = documentAssignments;
+        if (typeFilter) {
+            filteredDocs = documentAssignments.filter(assignment => 
+                assignment.document.document_type === typeFilter
+            );
+        }
+        
+        renderDocumentsTable(filteredDocs);
+        renderDocumentCategories();
+    } catch (error) {
+        HRApp.showAlert('Error loading documents: ' + error.message, 'danger');
+    }
+}
+
+function renderDocumentsTable(assignments) {
+    if (assignments.length === 0) {
+        document.getElementById('documentsTable').innerHTML = '<p>No documents assigned to you.</p>';
+        return;
+    }
+    
+    const tableHtml = `
+        <table class="table" data-sortable>
+            <thead>
+                <tr>
+                    <th data-sortable="document_name">Document Name</th>
+                    <th data-sortable="document_type">Type</th>
+                    <th data-sortable="file_size">Size</th>
+                    <th data-sortable="assigned_at">Assigned Date</th>
+                    <th>Notes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${assignments.map(assignment => `
+                    <tr>
+                        <td data-column="document_name">
+                            ${assignment.document.original_filename}
+                            ${assignment.document.description ? `<br><small style="color: #666;">${assignment.document.description}</small>` : ''}
+                        </td>
+                        <td data-column="document_type">
+                            <span class="badge badge-primary">${assignment.document.document_type.replace('_', ' ').toUpperCase()}</span>
+                        </td>
+                        <td data-column="file_size">${HRApp.formatFileSize(assignment.document.file_size)}</td>
+                        <td data-column="assigned_at">${HRApp.formatDate(assignment.assigned_at)}</td>
+                        <td>${assignment.notes || '-'}</td>
+                        <td>
+                            <button class="btn btn-primary btn-small" onclick="HRApp.downloadDocument(${assignment.document.id}, '${assignment.document.original_filename}')">
+                                Download
+                            </button>
+                            <button class="btn btn-secondary btn-small" onclick="viewDocument(${assignment.document.id})">
+                                View Details
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    document.getElementById('documentsTable').innerHTML = tableHtml;
+}
+
+function renderDocumentCategories() {
+    // Group documents by type
+    const categories = {};
+    documentAssignments.forEach(assignment => {
+        const type = assignment.document.document_type;
+        if (!categories[type]) {
+            categories[type] = [];
+        }
+        categories[type].push(assignment);
+    });
+    
+    if (Object.keys(categories).length === 0) {
+        document.getElementById('documentCategories').innerHTML = '<p>No document categories found.</p>';
+        return;
+    }
+    
+    const categoriesHtml = Object.entries(categories).map(([type, docs]) => `
+        <div class="col-md-4">
+            <div class="card" style="margin-bottom: 1rem;">
+                <h4>${type.replace('_', ' ').toUpperCase()}</h4>
+                <p><strong>${docs.length}</strong> document${docs.length !== 1 ? 's' : ''}</p>
+                <button class="btn btn-primary btn-small" onclick="filterByType('${type}')">
+                    View ${type.replace('_', ' ')} Documents
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('documentCategories').innerHTML = categoriesHtml;
+}
+
+function filterByType(type) {
+    document.getElementById('typeFilter').value = type;
+    loadDocuments(type);
+    
+    // Scroll to documents table
+    document.getElementById('documentsTable').scrollIntoView({ behavior: 'smooth' });
+}
+
+function viewDocument(documentId) {
+    // Show document details modal or navigate to detail page
+    const assignment = documentAssignments.find(a => a.document.id === documentId);
+    if (!assignment) return;
+    
+    const doc = assignment.document;
+    
+    const modalHtml = `
+        <div id="documentModal" class="modal" style="display: block; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 500px;">
+                <h3>Document Details</h3>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>File Name:</strong> ${doc.original_filename}
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Type:</strong> <span class="badge badge-primary">${doc.document_type.replace('_', ' ').toUpperCase()}</span>
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Size:</strong> ${HRApp.formatFileSize(doc.file_size)}
+                </div>
+                
+                <div style="margin-bottom: 1rem;">
+                    <strong>Assigned:</strong> ${HRApp.formatDate(assignment.assigned_at)}
+                </div>
+                
+                ${doc.description ? `
+                    <div style="margin-bottom: 1rem;">
+                        <strong>Description:</strong><br>
+                        ${doc.description}
+                    </div>
+                ` : ''}
+                
+                ${assignment.notes ? `
+                    <div style="margin-bottom: 1rem;">
+                        <strong>Assignment Notes:</strong><br>
+                        ${assignment.notes}
+                    </div>
+                ` : ''}
+                
+                <div class="d-flex justify-content-between">
+                    <button class="btn btn-secondary" onclick="closeDocumentModal()">Close</button>
+                    <button class="btn btn-primary" onclick="HRApp.downloadDocument(${doc.id}, '${doc.original_filename}')">
+                        Download Document
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+function closeDocumentModal() {
+    const modal = document.getElementById('documentModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Type filter
+document.getElementById('typeFilter').addEventListener('change', function() {
+    loadDocuments(this.value);
+});
+
+// Initialize
+loadDocuments();
+</script>
+{% endblock %}

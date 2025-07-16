@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}Client Management - HR Compliance Platform{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Client Management</h2>
+            <button class="btn btn-primary" onclick="showModal('createClientModal')">
+                Add New Client
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Active Clients</h3>
+        <div>
+            <select id="industryFilter" class="form-control" style="width: auto; display: inline-block;">
+                <option value="">All Industries</option>
+                <option value="healthcare">Healthcare</option>
+                <option value="construction">Construction</option>
+                <option value="professional_services">Professional Services</option>
+            </select>
+        </div>
+    </div>
+    
+    <div id="clientsTable">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Create Client Modal -->
+<div id="createClientModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <h3>Add New Client</h3>
+        <form id="createClientForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="companyName">Company Name</label>
+                        <input type="text" id="companyName" name="company_name" class="form-control" required>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="industry">Industry</label>
+                        <select id="industry" name="industry" class="form-control" required>
+                            <option value="">Select Industry...</option>
+                            <option value="healthcare">Healthcare</option>
+                            <option value="construction">Construction</option>
+                            <option value="professional_services">Professional Services</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="employeeCount">Number of Employees</label>
+                        <input type="number" id="employeeCount" name="employee_count" class="form-control" min="1" required>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="pointOfContact">Point of Contact</label>
+                        <input type="text" id="pointOfContact" name="point_of_contact" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="contactEmail">Contact Email</label>
+                        <input type="email" id="contactEmail" name="contact_email" class="form-control" required>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="contactPhone">Contact Phone</label>
+                        <input type="tel" id="contactPhone" name="contact_phone" class="form-control">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="address">Address</label>
+                <textarea id="address" name="address" class="form-control" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="notes">Internal Notes</label>
+                <textarea id="notes" name="notes" class="form-control" rows="3"></textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Client</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Client Modal -->
+<div id="editClientModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 2rem; border-radius: 8px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <h3>Edit Client</h3>
+        <form id="editClientForm">
+            <input type="hidden" id="editClientId" name="client_id">
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="editCompanyName">Company Name</label>
+                        <input type="text" id="editCompanyName" name="company_name" class="form-control" required>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="editIndustry">Industry</label>
+                        <select id="editIndustry" name="industry" class="form-control" required>
+                            <option value="healthcare">Healthcare</option>
+                            <option value="construction">Construction</option>
+                            <option value="professional_services">Professional Services</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="editEmployeeCount">Number of Employees</label>
+                        <input type="number" id="editEmployeeCount" name="employee_count" class="form-control" min="1" required>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="editPointOfContact">Point of Contact</label>
+                        <input type="text" id="editPointOfContact" name="point_of_contact" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="editContactEmail">Contact Email</label>
+                        <input type="email" id="editContactEmail" name="contact_email" class="form-control" required>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="editContactPhone">Contact Phone</label>
+                        <input type="tel" id="editContactPhone" name="contact_phone" class="form-control">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="editAddress">Address</label>
+                <textarea id="editAddress" name="address" class="form-control" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="editNotes">Internal Notes</label>
+                <textarea id="editNotes" name="notes" class="form-control" rows="3"></textarea>
+            </div>
+            
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Client</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Check authentication
+if (!HRApp.checkAuth()) {
+    // Redirect handled by checkAuth
+}
+
+let clients = [];
+
+async function loadClients(industryFilter = '') {
+    try {
+        const params = industryFilter ? `?industry=${industryFilter}` : '';
+        clients = await HRApp.apiRequest(`/admin/clients${params}`);
+        renderClientsTable();
+    } catch (error) {
+        HRApp.showAlert('Error loading clients: ' + error.message, 'danger');
+    }
+}
+
+function renderClientsTable() {
+    if (clients.length === 0) {
+        document.getElementById('clientsTable').innerHTML = '<p>No clients found.</p>';
+        return;
+    }
+    
+    const tableHtml = `
+        <table class="table" data-sortable>
+            <thead>
+                <tr>
+                    <th data-sortable="company_name">Company Name</th>
+                    <th data-sortable="industry">Industry</th>
+                    <th data-sortable="employee_count">Employees</th>
+                    <th data-sortable="point_of_contact">Contact</th>
+                    <th data-sortable="created_at">Added</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${clients.map(client => `
+                    <tr>
+                        <td data-column="company_name">${client.company_name}</td>
+                        <td data-column="industry">${client.industry.replace('_', ' ').toUpperCase()}</td>
+                        <td data-column="employee_count">${client.employee_count}</td>
+                        <td data-column="point_of_contact">
+                            ${client.point_of_contact}<br>
+                            <small style="color: #666;">${client.contact_email}</small>
+                        </td>
+                        <td data-column="created_at">${HRApp.formatDate(client.created_at)}</td>
+                        <td>
+                            <button class="btn btn-small btn-secondary" onclick="editClient(${client.id})">
+                                Edit
+                            </button>
+                            <button class="btn btn-small btn-primary" onclick="viewClientDetails(${client.id})">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    document.getElementById('clientsTable').innerHTML = tableHtml;
+}
+
+async function editClient(clientId) {
+    try {
+        const client = await HRApp.apiRequest(`/admin/clients/${clientId}`);
+        
+        // Populate edit form
+        document.getElementById('editClientId').value = client.id;
+        document.getElementById('editCompanyName').value = client.company_name;
+        document.getElementById('editIndustry').value = client.industry;
+        document.getElementById('editEmployeeCount').value = client.employee_count;
+        document.getElementById('editPointOfContact').value = client.point_of_contact;
+        document.getElementById('editContactEmail').value = client.contact_email;
+        document.getElementById('editContactPhone').value = client.contact_phone || '';
+        document.getElementById('editAddress').value = client.address || '';
+        document.getElementById('editNotes').value = client.notes || '';
+        
+        HRApp.showModal('editClientModal');
+    } catch (error) {
+        HRApp.showAlert('Error loading client details: ' + error.message, 'danger');
+    }
+}
+
+function viewClientDetails(clientId) {
+    // Navigate to client detail view (you can implement this)
+    window.location.href = `/admin/clients/${clientId}`;
+}
+
+// Handle client creation
+HRApp.handleFormSubmit(document.getElementById('createClientForm'), async (formData) => {
+    const clientData = {
+        company_name: formData.get('company_name'),
+        industry: formData.get('industry'),
+        employee_count: parseInt(formData.get('employee_count')),
+        point_of_contact: formData.get('point_of_contact'),
+        contact_email: formData.get('contact_email'),
+        contact_phone: formData.get('contact_phone') || null,
+        address: formData.get('address') || null,
+        notes: formData.get('notes') || null
+    };
+    
+    try {
+        await HRApp.apiRequest('/admin/clients', {
+            method: 'POST',
+            body: JSON.stringify(clientData)
+        });
+        
+        HRApp.showAlert('Client created successfully', 'success');
+        HRApp.hideModal('createClientModal');
+        document.getElementById('createClientForm').reset();
+        
+        // Reload clients
+        loadClients();
+    } catch (error) {
+        HRApp.showAlert('Error creating client: ' + error.message, 'danger');
+    }
+});
+
+// Handle client editing
+HRApp.handleFormSubmit(document.getElementById('editClientForm'), async (formData) => {
+    const clientId = formData.get('client_id');
+    const clientData = {
+        company_name: formData.get('company_name'),
+        industry: formData.get('industry'),
+        employee_count: parseInt(formData.get('employee_count')),
+        point_of_contact: formData.get('point_of_contact'),
+        contact_email: formData.get('contact_email'),
+        contact_phone: formData.get('contact_phone') || null,
+        address: formData.get('address') || null,
+        notes: formData.get('notes') || null
+    };
+    
+    try {
+        await HRApp.apiRequest(`/admin/clients/${clientId}`, {
+            method: 'PUT',
+            body: JSON.stringify(clientData)
+        });
+        
+        HRApp.showAlert('Client updated successfully', 'success');
+        HRApp.hideModal('editClientModal');
+        
+        // Reload clients
+        loadClients();
+    } catch (error) {
+        HRApp.showAlert('Error updating client: ' + error.message, 'danger');
+    }
+});
+
+// Industry filter
+document.getElementById('industryFilter').addEventListener('change', function() {
+    loadClients(this.value);
+});
+
+// Initialize
+loadClients();
+</script>
+{% endblock %}

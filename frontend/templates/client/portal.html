@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Client Portal - HR Compliance Platform{% endblock %}
+
+{% block navigation %}
+<a href="/client/portal">Dashboard</a>
+<a href="/client/documents">Documents</a>
+<a href="/client/submit-inquiry">Submit Inquiry</a>
+<a href="#" data-action="logout">Logout</a>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <h2>Client Portal Dashboard</h2>
+        <p>Welcome to your HR Compliance Portal</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <h3>Quick Overview</h3>
+            <div id="dashboardSummary">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Upcoming Tasks</h3>
+                <a href="/client/submit-inquiry" class="btn btn-primary btn-small">Submit Question</a>
+            </div>
+            <div id="upcomingTasks">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>Recent Documents</h3>
+                <a href="/client/documents" class="btn btn-secondary btn-small">View All</a>
+            </div>
+            <div id="recentDocuments">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3>My Inquiries</h3>
+                <a href="/client/submit-inquiry" class="btn btn-secondary btn-small">Submit New</a>
+            </div>
+            <div id="recentInquiries">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Check authentication
+if (!HRApp.checkAuth()) {
+    // Redirect handled by checkAuth
+}
+
+let dashboardData = {};
+
+async function loadClientDashboard() {
+    try {
+        const [summary, documents, tasks, inquiries] = await Promise.all([
+            HRApp.apiRequest('/client/dashboard/summary'),
+            HRApp.apiRequest('/client/documents'),
+            HRApp.apiRequest('/client/tasks'),
+            HRApp.apiRequest('/client/inquiries')
+        ]);
+        
+        dashboardData = { summary, documents, tasks, inquiries };
+        
+        renderDashboardSummary();
+        renderUpcomingTasks();
+        renderRecentDocuments();
+        renderRecentInquiries();
+        
+    } catch (error) {
+        HRApp.showAlert('Error loading dashboard: ' + error.message, 'danger');
+    }
+}
+
+function renderDashboardSummary() {
+    const { summary } = dashboardData;
+    
+    document.getElementById('dashboardSummary').innerHTML = `
+        <div style="margin-bottom: 1rem;">
+            <strong>${summary.document_count}</strong> Available Documents
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <strong>${summary.pending_tasks}</strong> Pending Tasks
+        </div>
+        <div style="margin-bottom: 1rem;">
+            <strong>${summary.open_inquiries}</strong> Open Inquiries
+        </div>
+    `;
+}
+
+function renderUpcomingTasks() {
+    const { summary } = dashboardData;
+    
+    if (!summary.upcoming_tasks || summary.upcoming_tasks.length === 0) {
+        document.getElementById('upcomingTasks').innerHTML = '<p>No upcoming tasks.</p>';
+        return;
+    }
+    
+    const tasksHtml = summary.upcoming_tasks.map(task => `
+        <div style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${task.title}</strong><br>
+                <span class="badge badge-${getPriorityColor(task.priority)}">${task.priority.toUpperCase()}</span>
+            </div>
+            <div style="text-align: right; font-size: 0.875rem; color: #666;">
+                Due: ${HRApp.formatDate(task.due_date)}
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('upcomingTasks').innerHTML = tasksHtml;
+}
+
+function renderRecentDocuments() {
+    const { documents } = dashboardData;
+    const recentDocs = documents.slice(0, 5);
+    
+    if (recentDocs.length === 0) {
+        document.getElementById('recentDocuments').innerHTML = '<p>No documents assigned.</p>';
+        return;
+    }
+    
+    const docsHtml = recentDocs.map(assignment => `
+        <div style="padding: 0.75rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${assignment.document.original_filename}</strong><br>
+                <small style="color: #666;">
+                    <span class="badge badge-primary">${assignment.document.document_type.replace('_', ' ').toUpperCase()}</span>
+                    ${HRApp.formatFileSize(assignment.document.file_size)}
+                </small>
+            </div>
+            <div>
+                <button class="btn btn-small btn-primary" onclick="HRApp.downloadDocument(${assignment.document.id}, '${assignment.document.original_filename}')">
+                    Download
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    document.getElementById('recentDocuments').innerHTML = docsHtml;
+}
+
+function renderRecentInquiries() {
+    const { inquiries } = dashboardData;
+    const recentInquiries = inquiries.slice(0, 5);
+    
+    if (recentInquiries.length === 0) {
+        document.getElementById('recentInquiries').innerHTML = '<p>No inquiries submitted.</p>';
+        return;
+    }
+    
+    const inquiriesHtml = recentInquiries.map(inquiry => `
+        <div style="padding: 0.75rem; border-bottom: 1px solid #eee;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div>
+                    <strong>${inquiry.subject}</strong><br>
+                    <small style="color: #666;">${HRApp.formatDate(inquiry.created_at)}</small>
+                </div>
+                <span class="badge badge-${getStatusColor(inquiry.status)}">${inquiry.status.toUpperCase()}</span>
+            </div>
+            ${inquiry.admin_response ? `
+                <div style="margin-top: 0.5rem; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; font-size: 0.9rem;">
+                    <strong>Response:</strong> ${inquiry.admin_response}
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+    
+    document.getElementById('recentInquiries').innerHTML = inquiriesHtml;
+}
+
+function getPriorityColor(priority) {
+    switch(priority) {
+        case 'urgent': return 'danger';
+        case 'high': return 'warning';
+        case 'low': return 'secondary';
+        default: return 'primary';
+    }
+}
+
+function getStatusColor(status) {
+    switch(status) {
+        case 'open': return 'warning';
+        case 'in_review': return 'primary';
+        case 'resolved': return 'success';
+        case 'closed': return 'secondary';
+        default: return 'primary';
+    }
+}
+
+// Auto-refresh function
+function refreshDashboard() {
+    loadClientDashboard();
+}
+
+// Initialize dashboard
+loadClientDashboard();
+</script>
+{% endblock %}
